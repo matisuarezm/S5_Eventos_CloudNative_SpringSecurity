@@ -54,6 +54,11 @@
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-actuator</artifactId>
         </dependency>
+        <!-- Semana 5: Spring Security (autenticacion y autorizacion) -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-security</artifactId>
+        </dependency>
 
         <!-- Semana 5: Spring Security como "resource server" OAuth2.
              Valida en cada peticion el token JWT (Bearer) emitido por Azure AD B2C:
@@ -69,19 +74,19 @@
             <artifactId>ojdbc11</artifactId>
         </dependency>
 
-        <!-- Librería de Infraestructura de Clave Pública (PKI) para leer cwallet.sso -->
+        <!-- Libreria de Infraestructura de Clave Publica (PKI) para leer cwallet.sso -->
         <dependency>
             <groupId>com.oracle.database.security</groupId>
             <artifactId>oraclepki</artifactId>
         </dependency>
         
-        <!-- Librería para el manejo de certificados de seguridad de Oracle -->
+        <!-- Libreria para el manejo de certificados de seguridad de Oracle -->
         <dependency>
             <groupId>com.oracle.database.security</groupId>
             <artifactId>osdt_cert</artifactId>
         </dependency>
         
-        <!-- Núcleo de seguridad de Oracle (Oracle Security Developer Tools) -->
+        <!-- Nucleo de seguridad de Oracle (Oracle Security Developer Tools) -->
         <dependency>
             <groupId>com.oracle.database.security</groupId>
             <artifactId>osdt_core</artifactId>
