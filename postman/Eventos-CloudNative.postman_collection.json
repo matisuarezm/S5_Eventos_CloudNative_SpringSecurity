@@ -1,6 +1,6 @@
 {
   "info": {
-    "name": "Eventos Cloud Native - Semanas 1, 2 y 3",
+    "name": "Eventos Cloud Native - Semanas 1 a 5",
     "description": "Pruebas de eventos-service y ventas-service. Cambia la variable 'host' por la IP elastica de tu EC2 (o localhost).",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
