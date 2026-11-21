@@ -1,4 +1,4 @@
-# Eventos Cloud Native – Semanas 1 a 4 (CDY2204)
+# Eventos Cloud Native – Semanas 1 a 5 (CDY2204)
 
 ## Cinthya Guzman / Matias Suarez
 
@@ -116,6 +116,61 @@ Respuesta `201 Created`:
 
 ---
 
+## Semana 5 – Spring Security + API Gateway + IDaaS (doble autenticación)
+
+Todos los endpoints quedan protegidos **dos veces** con el mismo token JWT de Azure AD B2C:
+
+1. **AWS API Gateway** (Semana 4): el autorizador JWT `AzureB2C-JWT` rechaza la petición si no trae un token válido.
+2. **Spring Security** en cada microservicio (Semana 5): `eventos-service` y `ventas-service` funcionan como
+   *resource server* OAuth2 y vuelven a validar el token. Así, quien llame directo a la IP de la EC2
+   sin pasar por el Gateway también recibe **401**.
+
+```
+ Postman ──► API Gateway ──(autorizador JWT)──► EC2 :8082 ventas-service ──(Spring Security)──► controller
+    │                                                     │ reenvía el mismo token (Bearer)
+    └──────── directo a la EC2 sin token ──► 401          ▼
+                                               eventos-service :8081 ──(Spring Security)──► controller
+```
+
+### Qué se agregó
+
+| Archivo | Cambio |
+|---|---|
+| `*/pom.xml` | `spring-boot-starter-oauth2-resource-server` (incluye Spring Security) y `spring-security-test` |
+| `*/config/SecurityConfig.java` | `SecurityFilterChain`: sin sesión (stateless), CSRF deshabilitado, `/actuator/health` público y todo lo demás autenticado con `oauth2ResourceServer().jwt()` |
+| `*/application.properties` | `spring.security.oauth2.resourceserver.jwt.issuer-uri=${ISSUER_URI}` y `...jwt.audiences=${AUDIENCE}` |
+| `client/EventosClient.java` | Reenvía el token de la petición original a `eventos-service` (propagación del token) |
+| `compose.yml` + `ci-cd.yml` | Variables `ISSUER_URI` y `AUDIENCE` desde los secrets de GitHub hacia los contenedores |
+| Pruebas | `@WithMockUser` en las pruebas existentes y `SeguridadTests` (sin token → 401, con token → 200, health sin token → 200) |
+| Postman | OAuth 2.0 (Client Credentials) a nivel de colección y carpeta *Seguridad - Semana 5* |
+
+### Cómo valida Spring Security el token
+
+Con `issuer-uri`, Spring descarga `{issuer}/.well-known/openid-configuration` y las claves públicas de Azure,
+y en cada petición verifica la **firma**, el **emisor** (`iss`), la **audiencia** (`aud`) y el **vencimiento** (`exp`).
+Deben coincidir con el autorizador de API Gateway:
+
+| Secret de GitHub | Valor |
+|---|---|
+| `ISSUER_URI` | `https://login.microsoftonline.com/d75d5096-c9b7-46bd-bf00-5498b3a931da/v2.0` |
+| `AUDIENCE` | `4b6c5993-ccad-4a90-b661-f28831404e77` |
+
+> Si estos secrets quedan vacíos, la aplicación no puede validar tokens. La EC2 necesita salida a Internet
+> para descargar las claves de `login.microsoftonline.com`.
+
+### Pruebas esperadas
+
+| Prueba | Resultado |
+|---|---|
+| `GET http://<ec2>:8082/api/compras` sin token | `401` (Spring Security) |
+| `GET http://<ec2>:8082/api/compras` con token | `200` |
+| `GET http://<ec2>:8081/api/eventos` con token | `200` |
+| `POST {gateway}/api/compras/1/resumen/s3` sin token | `401` (API Gateway) |
+| `POST {gateway}/api/compras/1/resumen/s3` con token | `201` (pasa el Gateway y Spring Security) |
+| `GET http://<ec2>:8082/actuator/health` | `200` sin token (healthcheck) |
+
+---
+
 ## Semana 4 – API Manager (AWS API Gateway) + IDaaS (Azure AD B2C)
 
 Los endpoints del resumen de compra (Semana 2) se publican a través de un **API Manager** y solo
@@ -210,7 +265,7 @@ Luego **Use Token**: Postman envía el header `Authorization: Bearer <token>` en
 | Ruta del Gateway **con** token válido | `200 OK` con la respuesta de `ventas-service` |
 | Ruta del Gateway con token vencido o de otra audiencia | `401 Unauthorized` |
 
-> **Limitación conocida (se resuelve en la Semana 5):** el autorizador protege solo la URL del
+> **Limitación de la Semana 4 (resuelta en la Semana 5 con Spring Security):** el autorizador protege solo la URL del
 > Gateway. Quien conozca la IP de la EC2 todavía puede llamar directo a `:8082` sin token.
 > En la Semana 5 se agrega **Spring Security** para que los microservicios también validen el JWT.
 
@@ -440,6 +495,8 @@ En el repositorio: **Settings → Secrets and variables → Actions → New repo
 | `AWS_ACCESS_KEY_ID` | Learner Lab → AWS Details (Semana 2) |
 | `AWS_SECRET_ACCESS_KEY` | Learner Lab → AWS Details (Semana 2) |
 | `AWS_SESSION_TOKEN` | Learner Lab → AWS Details (Semana 2) |
+| `ISSUER_URI` | Emisor del token de Azure (Semana 5) |
+| `AUDIENCE` | Id. de aplicación (cliente) de Azure (Semana 5) |
 
 ### 5. Desplegar
 

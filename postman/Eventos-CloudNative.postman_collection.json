@@ -32,6 +32,23 @@
     {
       "key": "usuario",
       "value": "camila.rojas@correo.cl"
+    },
+    {
+      "key": "tenantId",
+      "value": "d75d5096-c9b7-46bd-bf00-5498b3a931da"
+    },
+    {
+      "key": "clientId",
+      "value": "4b6c5993-ccad-4a90-b661-f28831404e77"
+    },
+    {
+      "key": "clientSecret",
+      "value": "",
+      "description": "Valor del secreto de cliente de Azure. No se guarda en el repositorio: completarlo localmente."
+    },
+    {
+      "key": "gatewayUrl",
+      "value": "https://emfvol7pre.execute-api.us-east-1.amazonaws.com/S4cloudNativeG10"
     }
   ],
   "item": [
@@ -1225,7 +1242,173 @@
             "description": ""
           }
         }
+      ],
+      "auth": {
+        "type": "noauth"
+      },
+      "description": "Semana 5: /actuator/health no exige token (lo usan los healthchecks de Docker)."
+    },
+    {
+      "name": "Seguridad - Semana 5 (Spring Security + API Gateway)",
+      "description": "Doble autenticacion: el token de Azure AD B2C se valida en AWS API Gateway (autorizador JWT) y en cada microservicio con Spring Security.",
+      "item": [
+        {
+          "name": "EC2 directo SIN token -> 401",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{ventasUrl}}/api/compras",
+            "description": "Llamada directa a la EC2 sin pasar por el Gateway y sin token: ahora la rechaza Spring Security.",
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Spring Security rechaza sin token (401)\", () => pm.response.to.have.status(401));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "EC2 directo CON token -> 200",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{ventasUrl}}/api/compras",
+            "description": "Usa el token OAuth 2.0 de la coleccion (Get New Access Token)."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Con token valido responde 200\", () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "eventos-service CON token -> 200",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{eventosUrl}}/api/eventos",
+            "description": ""
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"eventos-service tambien valida el token\", () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Gateway SIN token -> 401",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": "{{gatewayUrl}}/api/compras/{{compraId}}/resumen/s3",
+            "description": "",
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"El autorizador del Gateway rechaza sin token\", () => pm.response.to.have.status(401));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Gateway CON token -> 201",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": "{{gatewayUrl}}/api/compras/{{compraId}}/resumen/s3",
+            "description": "El token pasa por el autorizador JWT del Gateway y luego lo valida Spring Security en ventas-service."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Pasa el Gateway y Spring Security (201)\", () => pm.response.to.have.status(201));"
+                ]
+              }
+            }
+          ]
+        }
       ]
     }
-  ]
+  ],
+  "auth": {
+    "type": "oauth2",
+    "oauth2": [
+      {
+        "key": "tokenName",
+        "value": "Azure_Aws",
+        "type": "string"
+      },
+      {
+        "key": "grant_type",
+        "value": "client_credentials",
+        "type": "string"
+      },
+      {
+        "key": "accessTokenUrl",
+        "value": "https://login.microsoftonline.com/{{tenantId}}/oauth2/v2.0/token",
+        "type": "string"
+      },
+      {
+        "key": "clientId",
+        "value": "{{clientId}}",
+        "type": "string"
+      },
+      {
+        "key": "clientSecret",
+        "value": "{{clientSecret}}",
+        "type": "string"
+      },
+      {
+        "key": "scope",
+        "value": "https://cloudnativeg10.onmicrosoft.com/{{clientId}}/.default",
+        "type": "string"
+      },
+      {
+        "key": "client_authentication",
+        "value": "header",
+        "type": "string"
+      },
+      {
+        "key": "addTokenTo",
+        "value": "header",
+        "type": "string"
+      },
+      {
+        "key": "headerPrefix",
+        "value": "Bearer",
+        "type": "string"
+      }
+    ]
+  }
 }

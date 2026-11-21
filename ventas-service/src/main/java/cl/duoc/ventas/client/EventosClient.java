@@ -13,7 +13,11 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.client.ClientHttpResponse;
+import org.springframework.http.client.ClientHttpRequestInterceptor;
 import org.springframework.http.client.SimpleClientHttpRequestFactory;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationToken;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.ResourceAccessException;
 import org.springframework.web.client.RestClient;
@@ -25,6 +29,9 @@ import java.util.Map;
 /**
  * Cliente HTTP hacia eventos-service (comunicacion entre microservicios).
  * La URL se configura con la variable de entorno EVENTOS_URL.
+ *
+ * Semana 5: eventos-service tambien esta protegido con Spring Security, asi que cada llamada
+ * reenvia el mismo token JWT que trajo la peticion original (propagacion del token).
  */
 @Component
 public class EventosClient {
@@ -40,7 +47,10 @@ public class EventosClient {
         SimpleClientHttpRequestFactory factory = new SimpleClientHttpRequestFactory();
         factory.setConnectTimeout(3000);
         factory.setReadTimeout(5000);
-        this.restClient = builder.baseUrl(eventosUrl).requestFactory(factory).build();
+        this.restClient = builder.baseUrl(eventosUrl)
+                .requestFactory(factory)
+                .requestInterceptor(propagarToken())
+                .build();
         this.objectMapper = objectMapper;
     }
 
@@ -84,6 +94,21 @@ public class EventosClient {
             log.warn("No se pudo consultar el evento {} en eventos-service: {}", eventoId, ex.getMessage());
             return null;
         }
+    }
+
+    /**
+     * Semana 5: agrega "Authorization: Bearer <token>" a las llamadas hacia eventos-service,
+     * usando el JWT con que el usuario llamo a ventas-service (queda en el SecurityContext).
+     * Si no hay token (por ejemplo en pruebas), la llamada sale sin el header.
+     */
+    private static ClientHttpRequestInterceptor propagarToken() {
+        return (request, body, execution) -> {
+            Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+            if (auth instanceof JwtAuthenticationToken jwt) {
+                request.getHeaders().setBearerAuth(jwt.getToken().getTokenValue());
+            }
+            return execution.execute(request, body);
+        };
     }
 
     private String leerMensaje(ClientHttpResponse response) {

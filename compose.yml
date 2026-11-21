@@ -11,6 +11,9 @@ services:
       DB_URL: ${DB_URL}
       DB_USERNAME: ${DB_USERNAME}
       DB_PASSWORD: ${DB_PASSWORD}
+      # Semana 5: Spring Security valida el JWT de Azure AD B2C (emisor y audiencia)
+      ISSUER_URI: ${ISSUER_URI}
+      AUDIENCE: ${AUDIENCE}
       JAVA_OPTS: "-XX:MaxRAMPercentage=75"
     mem_limit: 450m
     volumes:
@@ -41,6 +44,9 @@ services:
       AWS_SESSION_TOKEN: ${AWS_SESSION_TOKEN}
       # Semana 3: carpeta donde el contenedor ve el EFS (almacenamiento temporal de tickets)
       EFS_PATH: /app/efs
+      # Semana 5: Spring Security valida el JWT de Azure AD B2C (emisor y audiencia)
+      ISSUER_URI: ${ISSUER_URI}
+      AUDIENCE: ${AUDIENCE}
       JAVA_OPTS: "-XX:MaxRAMPercentage=75"
     mem_limit: 450m
     volumes:

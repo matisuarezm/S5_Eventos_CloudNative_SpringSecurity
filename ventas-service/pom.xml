@@ -63,6 +63,14 @@
             <artifactId>spring-boot-starter-actuator</artifactId>
         </dependency>
 
+        <!-- Semana 5: Spring Security como "resource server" OAuth2.
+             Valida en cada peticion el token JWT (Bearer) emitido por Azure AD B2C:
+             firma, emisor (iss), audiencia (aud) y vencimiento (exp). Incluye spring-boot-starter-security. -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-oauth2-resource-server</artifactId>
+        </dependency>
+
         <!-- Driver JDBC oficial de Oracle para Java 11+ / Java 21 -->
         <dependency>
             <groupId>com.oracle.database.jdbc</groupId>
@@ -110,6 +118,12 @@
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <!-- Semana 5: utilidades para probar endpoints protegidos (@WithMockUser, jwt()) -->
+        <dependency>
+            <groupId>org.springframework.security</groupId>
+            <artifactId>spring-security-test</artifactId>
             <scope>test</scope>
         </dependency>
     </dependencies>
