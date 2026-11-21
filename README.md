@@ -1,4 +1,4 @@
-# Eventos Cloud Native – Semanas 1, 2 y 3 (CDY2204)
+# Eventos Cloud Native – Semanas 1 a 4 (CDY2204)
 
 ## Cinthya Guzman / Matias Suarez
 
@@ -113,6 +113,106 @@ Respuesta `201 Created`:
 | 404 | El evento o la compra no existen |
 | 409 | No quedan entradas suficientes o el evento ya se realizó |
 | 503 | ventas-service no logra comunicarse con eventos-service |
+
+---
+
+## Semana 4 – API Manager (AWS API Gateway) + IDaaS (Azure AD B2C)
+
+Los endpoints del resumen de compra (Semana 2) se publican a través de un **API Manager** y solo
+se pueden consumir con un **token JWT** emitido por un **Identity as a Service**:
+
+- **IDaaS:** Azure AD B2C. Registra y autentica a los usuarios y emite el token (JWT) firmado.
+- **API Manager:** AWS API Gateway (HTTP API). Es la puerta de entrada única: recibe la petición,
+  valida el token con un **autorizador JWT** y, si es válido, la reenvía a `ventas-service` en la EC2.
+
+Esta semana no cambia el código de los microservicios: la seguridad se configura en Azure y en AWS.
+
+```
+                    (1) pide token (OAuth 2.0 Client Credentials)
+ Postman ─────────────────────────────────────────────► Azure AD B2C
+    │      ◄──────────────────── access token (JWT) ────  tenant cloudnativeg10
+    │
+    │ (2) GET /api/compras/1/resumen/s3
+    │     Authorization: Bearer <JWT>
+    ▼
+ AWS API Gateway (HTTP API)
+    │  autorizador JWT: valida firma, emisor (iss), audiencia (aud) y vencimiento (exp)
+    │  ├─ sin token o token inválido ──► 401 Unauthorized (no llega a la EC2)
+    │  └─ token válido
+    ▼
+ EC2 184.197.226.230:8082  ventas-service ──► Amazon S3 (resumenes/{id}/...)
+```
+
+### Requisitos de la Semana 4 y dónde se cumplen
+
+| Requisito del caso | Implementación |
+|---|---|
+| Generar el resumen de compra como archivo físico descargable | `GET /api/compras/{id}/resumen` (PDF) |
+| Subir el resumen a S3, en una carpeta con el número del resumen | `POST /api/compras/{id}/resumen/s3` → `resumenes/{id}/resumen-compra-{id}.pdf` |
+| Modificar, descargar y borrar el archivo del resumen | `PUT`, `GET` y `DELETE /api/compras/{id}/resumen/s3` |
+| Todos los endpoints inscritos en el API Gateway | Rutas de la tabla siguiente |
+| Autenticados mediante el IDaaS | Autorizador JWT de API Gateway asociado a cada ruta, con tokens de Azure AD B2C |
+
+### Rutas inscritas en API Gateway
+
+URL base: `https://<API_ID>.execute-api.us-east-1.amazonaws.com/<stage>`
+
+| Método | Ruta en el Gateway | Integración (URI HTTP) | Autorizador |
+|---|---|---|---|
+| GET    | `/api/compras/{id}/resumen`    | `http://184.197.226.230:8082/api/compras/{id}/resumen`    | JWT Azure B2C |
+| POST   | `/api/compras/{id}/resumen/s3` | `http://184.197.226.230:8082/api/compras/{id}/resumen/s3` | JWT Azure B2C |
+| GET    | `/api/compras/{id}/resumen/s3` | `http://184.197.226.230:8082/api/compras/{id}/resumen/s3` | JWT Azure B2C |
+| PUT    | `/api/compras/{id}/resumen/s3` | `http://184.197.226.230:8082/api/compras/{id}/resumen/s3` | JWT Azure B2C |
+| DELETE | `/api/compras/{id}/resumen/s3` | `http://184.197.226.230:8082/api/compras/{id}/resumen/s3` | JWT Azure B2C |
+
+### Configuración en Azure AD B2C
+
+| Elemento | Valor |
+|---|---|
+| Tenant (inquilino) | `cloudnativeg10.onmicrosoft.com` |
+| Aplicación registrada | `frontduoc-cloudnativeg10` |
+| Flujo de usuario | `B2C_1_CloudNativeG10_RegistroLogin` (registro e inicio de sesión) |
+| Scope expuesto ("Exponer una API") | `azure_aws` |
+| Permisos Microsoft Graph | `openid`, `offline_access`, `Application.Read.All`, `Application.ReadWrite.All` (con consentimiento de administrador) |
+| Credencial | Client secret (el valor **no** se guarda en el repositorio) |
+
+### Autorizador JWT en API Gateway
+
+| Campo | Valor |
+|---|---|
+| Tipo | JWT |
+| Origen de identidad | `$request.header.Authorization` |
+| Emisor (issuer) | `https://login.microsoftonline.com/<TENANT_ID>/v2.0` |
+| Audiencia | `<CLIENT_ID>` (Id. de aplicación de `frontduoc-cloudnativeg10`) |
+
+El emisor y la audiencia deben coincidir exactamente con los claims `iss` y `aud` del token
+(se pueden revisar pegando el token en https://jwt.ms).
+
+### Obtener el token en Postman
+
+Pestaña **Authorization → OAuth 2.0 → Get New Access Token**:
+
+| Campo | Valor |
+|---|---|
+| Grant type | Client Credentials |
+| Access Token URL | `https://login.microsoftonline.com/cloudnativeg10.onmicrosoft.com/oauth2/v2.0/token` |
+| Client ID | `<CLIENT_ID>` |
+| Client Secret | valor del client secret (no se versiona) |
+| Scope | `https://cloudnativeg10.onmicrosoft.com/<CLIENT_ID>/.default` |
+
+Luego **Use Token**: Postman envía el header `Authorization: Bearer <token>` en cada request.
+
+### Pruebas esperadas
+
+| Prueba | Resultado |
+|---|---|
+| Ruta del Gateway **sin** token | `401 {"message":"Unauthorized"}`: el Gateway la rechaza y no llega a la EC2 |
+| Ruta del Gateway **con** token válido | `200 OK` con la respuesta de `ventas-service` |
+| Ruta del Gateway con token vencido o de otra audiencia | `401 Unauthorized` |
+
+> **Limitación conocida (se resuelve en la Semana 5):** el autorizador protege solo la URL del
+> Gateway. Quien conozca la IP de la EC2 todavía puede llamar directo a `:8082` sin token.
+> En la Semana 5 se agrega **Spring Security** para que los microservicios también validen el JWT.
 
 ---
 
@@ -334,7 +434,7 @@ En el repositorio: **Settings → Secrets and variables → Actions → New repo
 | `EC2_USER` | `ec2-user` |
 | `EC2_SSH_KEY` | contenido completo del archivo `.pem` (incluye las líneas BEGIN/END) |
 | `DB_URL` | la URL JDBC del paso 1 |
-| `DB_USERNAME` | usuario de Oracle (`ADMIN`) |
+| `DB_USERNAME` | usuario/esquema de Oracle (`EVENTOS_S3`) |
 | `DB_PASSWORD` | contraseña de Oracle |
 | `S3_BUCKET` | nombre del bucket (Semana 2) |
 | `AWS_ACCESS_KEY_ID` | Learner Lab → AWS Details (Semana 2) |
